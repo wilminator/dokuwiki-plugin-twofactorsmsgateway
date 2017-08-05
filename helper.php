@@ -126,7 +126,6 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 			return false;
 		}
 		$gateway = $this->attribute->get("twofactorsmsgateway", "provider");
-		msg ("$number@$gateway");
 		$providers = $this->_getProviders();
 		if (array_key_exists($gateway, $providers)) {
 			$to = "{$number}@{$providers[$gateway]}";
@@ -148,8 +147,6 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		$result = $mail->send();
 		// Reset the email config in case another email gets sent.
 		$conf['htmlmail'] = $oldconf;
-		// This is here only for debugging for me for now.  My windows box can't send out emails :P
-		#if (!result) { msg($message, 0); return true;}
 		return $result;
 		}
 	
@@ -161,14 +158,25 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 	
     /**
      * Produce an array of SMS gateway email domains with the keys as the
-     * cellular providers.  Reads the gateway.txt file to generate the list.
+     * cellular providers.  Reads the gateway.txt and gateway.override 
+	 * (if present) files to generate the list.  
+	 * Create the gateway.override file to add your own custom gateways,
+	 * otherwise your changes will be lost on upgrade.
      * @return array - keys are providers, values are the email domains used
      *      to email an SMS to a phone user.
      */
     private function _getProviders() {
 		$filename = dirname(__FILE__).'/gateway.txt';
+		$local_filename = dirname(__FILE__).'/gateway.override';
 		$providers = array();
 		$contents = explode("\n", io_readFile($filename));		
+		$local_contents = io_readFile($local_filename);
+		if ($local_contents) {
+			// The override file IS processed twice- first to make its entries 
+			// appear at the top, then again so they override any default 
+			// values.
+			$contents = array_merge(explode("\n", $local_contents), $contents, explode("\n", $local_contents));
+		}
 		foreach($contents as $line) {
 			if (strstr($line, '@')) {
 				list($provider, $domain) = explode("@", trim($line), 2);

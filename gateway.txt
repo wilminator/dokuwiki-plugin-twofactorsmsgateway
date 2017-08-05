@@ -68,3 +68,4 @@ Virgin Mobile@vmobl.com
 Virgin Mobile Canada@vmobile.ca
 West Central Wireless@sms.wcc.net
 Western Wireless@cellularonewest.com
+Google (project Fi)@msg.fi.google.com
