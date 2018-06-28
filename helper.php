@@ -4,7 +4,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 	 * If the user has a valid email address in their profile, then this can be used.
 	 */
     public function canUse($user = null){		
-		return ($this->attribute->exists("twofactorsmsgateway", "verified", $user) && $this->getConf('enable') === 1);
+		return ($this->_settingExists("verified", $user) && $this->getConf('enable') === 1);
 	}
 	
 	/**
@@ -19,24 +19,34 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 	 */
     public function renderProfileForm(){
 		$elements = array();
-			// Provide an input for the phone number.			
-			$phone = $this->attribute->exists("twofactor", "phone") ? $this->attribute->get("twofactor", "phone") : '';
-			$elements['phone'] = form_makeTextField('phone', $phone, $this->_getSharedLang('phone'), '', 'block', array('size'=>'50'));
-			$providers = array_keys($this->_getProviders());
-			$provider = $this->attribute->exists("twofactorsmsgateway", "provider") ? $this->attribute->get("twofactorsmsgateway", "provider") : $providers[0];
-			$elements[] = form_makeListboxField('smsgateway_provider', $providers, $provider, $this->getLang('provider'), '', 'block');			 
+        // Provide an input for the phone number.			
+        $phone = $this->_settingGet("phone", '');
+        # This is to move the phone number from shared settings into this 
+        # module if not already present.
+        if (!$phone) {
+            $phone = $this->_sharedSettingGet('phone','');
+            if ($phone) {                
+                $this->_settingSet('phone', $phone);
+                $this->attribute->del('twofactor', 'phone');
+            }
+        }
+        
+        $elements['phone'] = form_makeTextField('phone', $phone, $this->getLang('phone'), '', 'block', array('size'=>'50'));
+        $providers = array_keys($this->_getProviders());
+        $provider = $this->_settingGet("provider",$providers[0]);
+        $elements[] = form_makeListboxField('smsgateway_provider', $providers, $provider, $this->getLang('provider'), '', 'block');			 
 
-			// If the phone number has not been verified, then do so here.
-			if ($phone) {
-				if (!$this->attribute->exists("twofactorsmsgateway", "verified")) {
-					// Render the HTML to prompt for the verification/activation OTP.
-					$elements[] = '<span>'.$this->getLang('verifynotice').'</span>';				
-					$elements[] = form_makeTextField('smsgateway_verify', '', $this->getLang('verifymodule'), '', 'block', array('size'=>'50', 'autocomplete'=>'off'));
-					$elements[] = form_makeCheckboxField('smsgateway_send', '1', $this->getLang('resendcode'),'','block');
-				}
-				// Render the element to remove the phone since it exists.
-				$elements[] = form_makeCheckboxField('smsgateway_disable', '1', $this->getLang('killmodule'), '', 'block');
-			}			
+        // If the phone number has not been verified, then do so here.
+        if ($phone) {
+            if (!$this->_settingExists("verified")) {
+                // Render the HTML to prompt for the verification/activation OTP.
+                $elements[] = '<span>'.$this->getLang('verifynotice').'</span>';				
+                $elements[] = form_makeTextField('smsgateway_verify', '', $this->getLang('verifymodule'), '', 'block', array('size'=>'50', 'autocomplete'=>'off'));
+                $elements[] = form_makeCheckboxField('smsgateway_send', '1', $this->getLang('resendcode'),'','block');
+            }
+            // Render the element to remove the phone since it exists.
+            $elements[] = form_makeCheckboxField('smsgateway_disable', '1', $this->getLang('killmodule'), '', 'block');
+        }			
 		return $elements;
 	}
 
@@ -46,13 +56,13 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
     public function processProfileForm(){
 		global $INPUT;
 		if ($INPUT->bool('smsgateway_disable', false)) {
-			// Do not delete the phone number. It is shared.
-			$this->attribute->del("twofactorsmsgateway", "provider");
+			$this->_settingDelete("phone");
+			$this->_settingDelete("provider");
 			// Also delete the verified setting.  Otherwise the system will still expect the user to login with OTP.
-			$this->attribute->del("twofactorsmsgateway", "verified");
+			$this->_settingDelete("verified");
 			return true;
 		}
-		$oldphone = $this->attribute->exists("twofactor", "phone") ? $this->attribute->get("twofactor", "phone") : '';
+		$oldphone = $this->_settingGet("phone", '');
 		if ($oldphone) {
 			if ($INPUT->bool('smsgateway_send', false)) {
 				return 'otp';
@@ -65,7 +75,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 					return 'failed';
 				}
 				else {
-					$this->attribute->set("twofactorsmsgateway", "verified", true);
+					$this->_settingSet("verified", true);
 					return 'verified';
 				}					
 			}							
@@ -75,28 +85,31 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		$phone = $INPUT->str('phone', '');
 		if (preg_match('/^[0-9]{5,}$/',$phone) != false) { 
 			if ($phone != $oldphone) {
-				if ($this->attribute->set("twofactor","phone", $phone)== false) {
+				if ($this->_settingSet("phone", $phone)== false) {
 					msg("TwoFactor: Error setting phone.", -1);
 				}
 				// Delete the verification for the phone number if it was changed.
-				$this->attribute->del("twofactorsmsgateway", "verified");
+				$this->_settingDelete("verified");
 				$changed = true;
 			}
 		}
+        else {
+            msg($this->getLang('invalid_number'), -1);
+        }
 		
-		$oldprovider = $this->attribute->get("twofactorsmsgateway", "provider", $success);
+		$oldprovider = $this->_settingGet("provider", '');
 		$provider = $INPUT->str('smsgateway_provider', '');
-		if (!$success  || $provider != $oldprovider) {
-			if ($this->attribute->set("twofactorsmsgateway","provider", $provider)== false) {
+		if ($provider != $oldprovider) {
+			if ($this->_settingSet("provider", $provider)== false) {
 				msg("TwoFactor: Error setting provider.", -1);
 			}
 			// Delete the verification for the phone number if the carrier was changed.
-			$this->attribute->del("twofactorsmsgateway", "verified");
+			$this->_settingDelete("verified");
 			$changed = true;
 		}
 		
 		// If the data changed and we have everything needed to use this module, send an otp.
-		if ($changed && $this->attribute->exists("twofactorsmsgateway", "provider") && $this->attribute->get("twofactor", "phone") !='') {
+		if ($changed && $this->_settingGet("provider", '') != '') {
 			$changed = 'otp';
 		}
 		return $changed;
@@ -113,41 +126,50 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 	 * Transmit the message via email to the address on file.
 	 * As a special case, configure the mail settings to send only via text.
 	 */
-	public function transmitMessage($message, $force = false){
+	public function transmitMessage($subject, $message, $force = false){
 		if (!$this->canUse()  && !$force) { return false; }
 		global $USERINFO, $conf;
 		// Disable HTML for text messages.	
-		$oldconf = $conf['htmlmail'];
-		$conf['htmlmail'] = 0;			
-		$number = $this->attribute->get("twofactor", "phone");
-		if (!$number) {
+		//$oldconf = $conf['htmlmail'];
+		//$conf['htmlmail'] = 0;			
+		$phone = $this->_settingGet("phone");
+        # This is to move the phone number from shared settings into this 
+        # module if not already present.
+        if (!$phone) {
+            $phone = $this->_sharedSettingGet('phone','');
+            if ($phone) {                
+                $this->_settingSet('phone', $phone);
+                $this->_sharedSettingDelete('phone');
+            }
+        }
+		if (!$phone) {
 			msg("TwoFactor: User has not defined a phone number.  Failing.", -1);
 			// If there is no phone number, then fail.
 			return false;
 		}
-		$gateway = $this->attribute->get("twofactorsmsgateway", "provider");
+		$gateway = $this->_settingGet("provider");
 
 		$providers = $this->_getProviders();
 		if (array_key_exists($gateway, $providers)) {
-			$to = "{$number}@{$providers[$gateway]}";
+			$to = "{$phone}@{$providers[$gateway]}";
 		}
 		else {
 			$to = '';
 		}
 		if (!$to) {
-			msg("TwoFactor: Unable to define To field for email.  Failing.", -1);
+			msg($this->getLang('invalidprovider'), -1);
 			// If there is no recipient address, then fail.
 			return false;
 		}
 		// Create the email object.
 		$mail = new Mailer();
-		$subject = $conf['title'].' login verification';
 		$mail->to($to);
 		$mail->subject($subject);
-		$mail->setText($message);			
+		$mail->setText($message);
+        $mail->setHTML('');
 		$result = $mail->send();
 		// Reset the email config in case another email gets sent.
-		$conf['htmlmail'] = $oldconf;
+		//$conf['htmlmail'] = $oldconf;
 		return $result;
 		}
 	
