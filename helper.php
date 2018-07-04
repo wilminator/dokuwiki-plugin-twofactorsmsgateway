@@ -83,20 +83,21 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		
 		$changed = null;
 		$phone = $INPUT->str('phone', '');
-		if (preg_match('/^[0-9]{5,}$/',$phone) != false) { 
-			if ($phone != $oldphone) {
-				if ($this->_settingSet("phone", $phone)== false) {
-					msg("TwoFactor: Error setting phone.", -1);
-				}
-				// Delete the verification for the phone number if it was changed.
-				$this->_settingDelete("verified");
-				$changed = true;
-			}
-		}
-        else {
-            msg($this->getLang('invalid_number'), -1);
+        if ($phone) {
+            if (preg_match('/^[0-9]{5,}$/',$phone) != false) { 
+                if ($phone != $oldphone) {
+                    if ($this->_settingSet("phone", $phone)== false) {
+                        msg("TwoFactor: Error setting phone.", -1);
+                    }
+                    // Delete the verification for the phone number if it was changed.
+                    $this->_settingDelete("verified");
+                    $changed = true;
+                }
+            }
+            else {
+                msg($this->getLang('invalidnumber'), -1);
+            }
         }
-		
 		$oldprovider = $this->_settingGet("provider", '');
 		$provider = $INPUT->str('smsgateway_provider', '');
 		if ($provider != $oldprovider) {
