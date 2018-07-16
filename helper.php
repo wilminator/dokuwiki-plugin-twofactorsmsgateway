@@ -68,7 +68,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 				return 'otp';
 			}
 			$otp = $INPUT->str('smsgateway_verify', '');
-			if ($otp) { // The user will use SMS.
+			if ($otp !== '') { // The user will use SMS.
 				$checkResult = $this->processLogin($otp);
 				// If the code works, then flag this account to use SMS Gateway.
 				if ($checkResult == false) {
@@ -83,7 +83,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		
 		$changed = null;
 		$phone = $INPUT->str('phone', '');
-        if ($phone) {
+        if ($phone !== '') {
             if (preg_match('/^[0-9]{5,}$/',$phone) != false) { 
                 if ($phone != $oldphone) {
                     if ($this->_settingSet("phone", $phone)== false) {
@@ -100,7 +100,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
         }
 		$oldprovider = $this->_settingGet("provider", '');
 		$provider = $INPUT->str('smsgateway_provider', '');
-		if ($provider != $oldprovider) {
+		if ($provider != $oldprovider  && $provider !== '') {
 			if ($this->_settingSet("provider", $provider)== false) {
 				msg("TwoFactor: Error setting provider.", -1);
 			}
@@ -110,7 +110,7 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		}
 		
 		// If the data changed and we have everything needed to use this module, send an otp.
-		if ($changed && $this->_settingGet("provider", '') != '') {
+		if (!is_null($changed) && $this->_settingGet("provider", '') != '') {
 			$changed = 'otp';
 		}
 		return $changed;
@@ -130,9 +130,6 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 	public function transmitMessage($subject, $message, $force = false){
 		if (!$this->canUse()  && !$force) { return false; }
 		global $USERINFO, $conf;
-		// Disable HTML for text messages.	
-		//$oldconf = $conf['htmlmail'];
-		//$conf['htmlmail'] = 0;			
 		$phone = $this->_settingGet("phone");
         # This is to move the phone number from shared settings into this 
         # module if not already present.
@@ -167,10 +164,8 @@ class helper_plugin_twofactorsmsgateway extends Twofactor_Auth_Module {
 		$mail->to($to);
 		$mail->subject($subject);
 		$mail->setText($message);
-        $mail->setHTML('');
+        $mail->setHTML('');  // No HTML to the SMS gateway, please!
 		$result = $mail->send();
-		// Reset the email config in case another email gets sent.
-		//$conf['htmlmail'] = $oldconf;
 		return $result;
 		}
 	

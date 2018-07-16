@@ -1,7 +1,7 @@
 ﻿base   twofactorsmsgateway
 author Michael Wilmes
 email  mwilmes@avc.edu
-date   2018-07-04
+date   2018-07-16
 name   Two Factor Authentication - SMS Gateway Plugin
 desc   SMS email gateway support plugin for the Twofactor authentication plugin.
 url    https://www.dokuwiki.org/plugin:twofactorsmsgateway
